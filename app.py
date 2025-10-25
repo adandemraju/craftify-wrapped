@@ -10,6 +10,62 @@ st.set_page_config(page_title="MakerMetrics Wrapped", page_icon="🎨", layout="
 if "projects" not in st.session_state:
     st.session_state.projects = []
 
+st.markdown("""
+<style>
+    /* Background gradient */
+    .stApp {
+        background: linear-gradient(180deg, #ffd6e8 0%, #fff0f6 100%);
+        color: #4a0033;
+    }
+
+    /* Sidebar background + text color */
+    section[data-testid="stSidebar"] {
+        background-color: #ffe6f0 !important;
+        color: #cc0066 !important;
+    }
+
+    /* Sidebar headers & labels */
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] label, 
+    section[data-testid="stSidebar"] div, 
+    section[data-testid="stSidebar"] span {
+        color: #cc0066 !important;
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    div.stButton > button:first-child {
+        background-color: #ff66b2;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        height: 3em;
+        width: 8em;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #ff3385;
+        transform: scale(1.05);
+    }
+
+    /* Info box (was blue, now pink!) */
+    .stAlert {
+        background-color: #ffcce0 !important; /* soft darker pink */
+        color: #800040 !important; /* dark rose text */
+        border-radius: 10px;
+        font-weight: 500;
+    }
+
+    /* Headings */
+    h1, h2, h3, h4, h5, h6 {
+        color: #cc0066 !important;
+        font-family: 'Poppins', sans-serif;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
 # Add Project Form
 st.sidebar.header("➕ Add Project")
 with st.sidebar.form("add"):
