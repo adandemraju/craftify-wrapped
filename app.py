@@ -14,12 +14,7 @@ if "projects" not in st.session_state:
 st.sidebar.header("➕ Add Project")
 with st.sidebar.form("add"):
     name = st.text_input("Project name")
-    category_choice = st.selectbox("Category", ["knitting","painting","paper","sewing","3D","other"])
-    if category_choice == "other":
-        custom_category = st.text_input("Category Name")
-        category = custom_category if custom_category else "other"
-    else:
-        category = category_choice
+    category = st.selectbox("Category", ["knitting","painting","paper","sewing","3D","other"])
 
     hours = st.number_input("Hours spent", min_value=0.1, step=0.1)
     dt = st.date_input("Date", value=date.today())
