@@ -4,7 +4,7 @@ import plotly.express as px
 from datetime import date
 import time
 
-st.set_page_config(page_title="MakerMetrics Wrapped", page_icon="🎨", layout="wide")
+st.set_page_config(page_title="Craftify Wrapped", page_icon="🎨", layout="wide")
 
 # In-memory "database"
 if "projects" not in st.session_state:
