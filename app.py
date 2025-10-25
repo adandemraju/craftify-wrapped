@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import date
+import time
 
 st.set_page_config(page_title="MakerMetrics Wrapped", page_icon="🎨", layout="wide")
 
@@ -13,13 +14,22 @@ if "projects" not in st.session_state:
 st.sidebar.header("➕ Add Project")
 with st.sidebar.form("add"):
     name = st.text_input("Project name")
-    category = st.selectbox("Category", ["knit","paint","paper","sew","3D","other"])
+    category_choice = st.selectbox("Category", ["knitting","painting","paper","sewing","3D","other"])
+    if category_choice == "other":
+        custom_category = st.text_input("Category Name")
+        category = custom_category if custom_category else "other"
+    else:
+        category = category_choice
+
     hours = st.number_input("Hours spent", min_value=0.1, step=0.1)
     dt = st.date_input("Date", value=date.today())
     submitted = st.form_submit_button("Save")
     if submitted:
-        st.session_state.projects.append({"name":name,"category":category,"hours":hours,"date":dt})
-        st.success("Project added!")
+        st.session_state["projects"].append({"name": name, "category": category, "hours": hours, "date": dt})
+        msg = st.empty()
+        msg.success("✅ Project added!")
+        time.sleep(2)
+        msg.empty()
 
 df = pd.DataFrame(st.session_state.projects)
 
