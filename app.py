@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import date, timedelta
 import time
+import json
 
 import base64, pathlib
 
@@ -16,9 +17,42 @@ with open(FONT_PATH, "rb") as f:
 
 st.set_page_config(page_title="Craftify Wrapped", page_icon="🎨", layout="wide")
 
-# In-memory "database"
+# Data file path
+DATA_FILE = "data/projects.json"
+
+# Create data directory if it doesn't exist
+pathlib.Path("data").mkdir(exist_ok=True)
+
+# Load data from file
+def load_projects():
+    """Load projects from JSON file"""
+    try:
+        if pathlib.Path(DATA_FILE).exists():
+            with open(DATA_FILE, 'r') as f:
+                data = json.load(f)
+                # Convert date strings back to date objects
+                for project in data:
+                    project['date'] = date.fromisoformat(project['date'])
+                return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return []
+
+# Save data to file
+def save_projects(projects):
+    """Save projects to JSON file"""
+    with open(DATA_FILE, 'w') as f:
+        # Convert date objects to strings for JSON serialization
+        serializable = []
+        for project in projects:
+            p = project.copy()
+            p['date'] = project['date'].isoformat()
+            serializable.append(p)
+        json.dump(serializable, f, indent=2)
+
+# Initialize session state with loaded data
 if "projects" not in st.session_state:
-    st.session_state.projects = []
+    st.session_state.projects = load_projects()
 
 # ---------- THEME / CSS ----------
 st.markdown(f"""
@@ -68,6 +102,39 @@ h1, h2, h3, h4, h5, h6 {{
   border-radius: 16px; padding: 16px;
   box-shadow: 0 6px 18px rgba(204,0,102,.1);
 }}
+
+/* Tab label colors - dark pink */
+button[data-baseweb="tab"] {{
+  color: #cc0066 !important;
+  font-weight: 600 !important;
+}}
+button[data-baseweb="tab"]:hover {{
+  color: #ff0066 !important;
+}}
+button[data-baseweb="tab"][aria-selected="true"] {{
+  color: #cc0066 !important;
+}}
+
+/* Change remaining white text to lighter pink */
+p, span, label, div, input, select, textarea, code, pre, table {{
+  color: #990055 !important;
+}}
+
+/* Keep button text white for contrast */
+div.stButton > button:first-child,
+div.stDownloadButton > button {{
+  color: white !important;
+}}
+
+/* Keep h1-h6 dark pink */
+h1, h2, h3, h4, h5, h6 {{
+  color: #cc0066 !important;
+}}
+
+/* Keep sidebar text dark pink */
+section[data-testid="stSidebar"] * {{
+  color: #cc0066 !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,12 +168,19 @@ with st.sidebar.form("add"):
             # Use custom category if provided, otherwise use the selected category
             final_category = custom_category if category == "other" and custom_category else category
             st.session_state["projects"].append({"name": name, "category": final_category, "hours": float(hours), "date": dt})
+            # Save to file
+            save_projects(st.session_state["projects"])
             msg = st.empty()
             msg.success("✅ Project added!")
             time.sleep(1)
             msg.empty()
 
+# Data management will be moved to top right as icon
+
 df = pd.DataFrame(st.session_state.projects)
+
+# ---------- HEADER ----------
+st.markdown("## Craftify Wrapped 🎨")
 
 # ---------- TAB NAVIGATION ----------
 slides = {
@@ -115,10 +189,9 @@ slides = {
     "🎨 Projects": "projects",
     "⏱️ Hours": "hours",
     "🏆 Top Category": "top",
-    "📈 Charts": "charts"
+    "📈 Charts": "charts",
+    "📦 Data": "data_management"
 }
-
-st.markdown("## Craftify Wrapped 🎨")
 
 # ---------- QUICK DASHBOARD RENDERER ----------
 def render_quick_dashboard(data: pd.DataFrame):
@@ -178,6 +251,78 @@ def render_quick_dashboard(data: pd.DataFrame):
 # ---------- CONTENT FUNCTIONS ----------
 def render_tab_content(slide_key):
     """Render content for a specific tab"""
+    
+    # Data management tab - no need to check if df is empty
+    if slide_key == "data_management":
+        st.markdown("### 📦 Data Management")
+        tab1, tab2, tab3 = st.tabs(["Export", "Import", "Clear"])
+        
+        # Export tab
+        with tab1:
+            st.markdown("Export your project data as a CSV file.")
+            if st.session_state.projects:
+                df_export = pd.DataFrame(st.session_state.projects)
+                df_export['date'] = df_export['date'].astype(str)
+                csv = df_export.to_csv(index=False)
+                
+                # Custom CSS for button styling
+                st.markdown("""
+                <style>
+                div.stDownloadButton > button {
+                    color: white !important;
+                }
+                div.stDownloadButton > button > div {
+                    color: white !important;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                st.download_button(
+                    label="💾 Download CSV",
+                    data=csv,
+                    file_name=f"craftify_data_{date.today()}.csv",
+                    mime="text/csv"
+                )
+                st.markdown(f'<p style="color:black;">Ready to export {len(st.session_state.projects)} projects!</p>', unsafe_allow_html=True)
+            else:
+                st.info("No data to export yet")
+        
+        # Import tab
+        with tab2:
+            st.markdown("Import project data from a CSV file.")
+            uploaded_file = st.file_uploader("Upload CSV file", type="csv")
+            if uploaded_file is not None:
+                try:
+                    df_import = pd.read_csv(uploaded_file)
+                    if 'date' in df_import.columns:
+                        df_import['date'] = pd.to_datetime(df_import['date']).dt.date
+                    imported_projects = df_import.to_dict('records')
+                    
+                    st.success(f"Found {len(imported_projects)} projects in the file.")
+                    if st.button("Import Data"):
+                        st.session_state["projects"] = imported_projects
+                        save_projects(st.session_state["projects"])
+                        st.success(f"✅ Imported {len(imported_projects)} projects!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error importing data: {str(e)}")
+        
+        # Clear tab
+        with tab3:
+            st.warning("⚠️ This will permanently delete all your data!")
+            if st.session_state.projects:
+                st.info(f"You currently have {len(st.session_state.projects)} projects.")
+                if st.button("🗑️ Clear All Data", type="secondary"):
+                    if st.button("⚠️ Confirm Delete", type="primary", key="confirm_del"):
+                        st.session_state["projects"] = []
+                        save_projects([])
+                        st.success("All data cleared!")
+                        st.rerun()
+            else:
+                st.info("No data to clear")
+        return
+    
+    # For other tabs, check if df is empty
     if df.empty:
         st.info("Add a project to unlock your Wrapped!")
         return
