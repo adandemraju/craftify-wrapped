@@ -59,6 +59,8 @@ def save_projects(projects):
 # Session state init
 if "projects" not in st.session_state:
     st.session_state.projects = load_projects()
+if "clear_pending" not in st.session_state:
+    st.session_state.clear_pending = False  # used by the Clear tab two-step confirmation
 
 # ------------------------------
 # Global UI helpers
@@ -345,19 +347,45 @@ def render_tab_content(slide_key):
                 except Exception as e:
                     st.error(f"Error importing data: {str(e)}")
 
-        # Clear
+        # Clear (two-step confirmation using session flag)
         with tab3:
             st.warning("⚠️ This will permanently delete all your data!")
             if st.session_state.projects:
                 st.info(f"You currently have {len(st.session_state.projects)} projects.")
-                if st.button("🗑️ Clear All Data", type="secondary"):
-                    if st.button("⚠️ Confirm Delete", type="primary", key="confirm_del"):
-                        st.session_state.projects = []
-                        save_projects([])
-                        st.success("All data cleared!")
-                        st.rerun()
+
+                if not st.session_state.clear_pending:
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("🗑️ Clear All Data", key="clear_btn"):
+                            st.session_state.clear_pending = True
+                            st.rerun()
+                    with c2:
+                        st.write("")  # keeps layout tidy
+                else:
+                    st.error("This cannot be undone. Are you sure?")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ Yes, delete", key="confirm_btn"):
+                            # wipe in-memory
+                            st.session_state.projects = []
+                            # overwrite file empty and remove file
+                            try:
+                                save_projects([])
+                                DATA_FILE.unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                            st.session_state.clear_pending = False
+                            st.success("All data cleared!")
+                            st.rerun()
+                    with c2:
+                        if st.button("↩️ Cancel", key="cancel_btn"):
+                            st.session_state.clear_pending = False
+                            st.info("Cancelled.")
+                            st.rerun()
             else:
                 st.info("No data to clear")
+                if st.session_state.clear_pending:
+                    st.session_state.clear_pending = False
         return
 
     # Other tabs need data
@@ -370,7 +398,8 @@ def render_tab_content(slide_key):
     df_summary["hours"] = pd.to_numeric(df_summary["hours"], errors="coerce").fillna(0.0)
     total_projects = len(df_summary)
     total_hours = float(df_summary["hours"].sum())
-    top_category = df_summary.groupby("category")["hours"].sum().idxmax()
+    by_cat_sum = df_summary.groupby("category")["hours"].sum()
+    top_category = by_cat_sum.idxmax() if not by_cat_sum.empty else "—"
 
     if slide_key == "dashboard":
         render_quick_dashboard(df)
