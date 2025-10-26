@@ -73,17 +73,34 @@ h1, h2, h3, h4, h5, h6 {{
 
 # ---------- SIDEBAR: ADD PROJECT ----------
 st.sidebar.header("➕ Add Project")
+
+# Get category selection OUTSIDE the form so it updates immediately
+category = st.sidebar.selectbox(
+    "Category", 
+    ["knitting","painting","paper","sewing","3D","other"],
+    key="category_select"
+)
+
+# Show custom category input if "other" is selected - this will show/hide reactively
+custom_category = ""
+if category == "other":
+    custom_category = st.sidebar.text_input("Enter custom category", key="custom_cat").strip()
+
+# Now the form
 with st.sidebar.form("add"):
     name = st.text_input("Project name").strip()
-    category = st.selectbox("Category", ["knitting","painting","paper","sewing","3D","other"])
     hours = st.number_input("Hours spent", min_value=0.0, step=0.1)
     dt = st.date_input("Date", value=date.today())
     submitted = st.form_submit_button("Save")
     if submitted:
         if not name:
             st.sidebar.warning("Please enter a project name.")
+        elif category == "other" and not custom_category:
+            st.sidebar.warning("Please enter a custom category.")
         else:
-            st.session_state["projects"].append({"name": name, "category": category, "hours": float(hours), "date": dt})
+            # Use custom category if provided, otherwise use the selected category
+            final_category = custom_category if category == "other" and custom_category else category
+            st.session_state["projects"].append({"name": name, "category": final_category, "hours": float(hours), "date": dt})
             msg = st.empty()
             msg.success("✅ Project added!")
             time.sleep(1)
@@ -91,23 +108,15 @@ with st.sidebar.form("add"):
 
 df = pd.DataFrame(st.session_state.projects)
 
-# ---------- SLIDES + NAV ----------
-if "slide" not in st.session_state:
-    st.session_state.slide = 0
-
-# NEW: add "dashboard" as first slide
-slides = ["dashboard","intro","projects","hours","top","charts"]
-
-def next_slide(): st.session_state.slide = min(st.session_state.slide+1,len(slides)-1)
-def prev_slide(): st.session_state.slide = max(st.session_state.slide-1,0)
-
-col1, col2 = st.columns([1,1])
-with col1:
-    if st.button("⬅ Prev"): prev_slide()
-with col2:
-    if st.button("Next ➡"): next_slide()
-
-s = slides[st.session_state.slide]
+# ---------- TAB NAVIGATION ----------
+slides = {
+    "🏠 Home": "intro",
+    "📊 Dashboard": "dashboard",
+    "🎨 Projects": "projects",
+    "⏱️ Hours": "hours",
+    "🏆 Top Category": "top",
+    "📈 Charts": "charts"
+}
 
 st.markdown("## Craftify Wrapped 🎨")
 
@@ -166,31 +175,63 @@ def render_quick_dashboard(data: pd.DataFrame):
     st.dataframe(recent, use_container_width=True, hide_index=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------- CONTENT ----------
-if df.empty:
-    if s == "dashboard":
+# ---------- CONTENT FUNCTIONS ----------
+def render_tab_content(slide_key):
+    """Render content for a specific tab"""
+    if df.empty:
         st.info("Add a project to unlock your Wrapped!")
-    else:
-        st.info("Add a project to unlock your Wrapped!")
-else:
+        return
+    
     total_projects = len(df)
     total_hours = df["hours"].sum()
     top_category = df.groupby("category")["hours"].sum().idxmax()
 
-    if s=="dashboard":
+    if slide_key=="dashboard":
         render_quick_dashboard(df)
-    elif s=="intro":
-        st.subheader("Your Year in Making 🎉")
-        st.caption("Use Next ➡ to browse highlights.")
-    elif s=="projects":
+    elif slide_key=="intro":
+        st.markdown("# Welcome to Craftify Wrapped 🎨")
+        st.markdown("---")
+        st.markdown("### Track your creative journey")
+        st.markdown("""
+        **Craftify Wrapped** is your personal analytics dashboard for tracking all your creative projects!
+        
+        Get insights into:
+        - 📊 Your project statistics and trends
+        - 🎨 Your most worked-on categories
+        - ⏱️ Total hours spent creating
+        - 📈 Beautiful visualizations of your work
+        
+        **Get started:** Use the sidebar to add your first project!
+        """)
+        st.markdown("---")
+        
+        # Show quick stats if available
+        if not df.empty:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Projects", total_projects)
+            with col2:
+                st.metric("Total Hours", f"{round(total_hours, 1)} hrs")
+            with col3:
+                st.metric("Top Category", top_category)
+    elif slide_key=="projects":
         st.metric("Total Projects", total_projects)
         st.dataframe(df.sort_values("date", ascending=False)[["date","name","category","hours"]],
                     use_container_width=True, hide_index=True)
-    elif s=="hours":
+    elif slide_key=="hours":
         st.metric("Total Hours", round(total_hours,1))
-    elif s=="top":
+    elif slide_key=="top":
         st.metric("Top Category", top_category)
-    elif s=="charts":
+    elif slide_key=="charts":
         fig = px.pie(df, names="category", values="hours", title="Hours by Category",
                     color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig, use_container_width=True)
+
+# ---------- CREATE TABS ----------
+tab_list = list(slides.keys())
+tabs = st.tabs(tab_list)
+
+# Render content for each tab
+for idx, (tab_name, slide_key) in enumerate(slides.items()):
+    with tabs[idx]:
+        render_tab_content(slide_key)
